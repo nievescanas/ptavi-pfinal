@@ -7,18 +7,31 @@ import os
 import os.path as path
 import socketserver
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 
 class EchoHandler(socketserver.DatagramRequestHandler):
     xml_dicc = {}
-
     def confxml(self):
         tree = ET.parse('ua1.xml')
         root = tree.getroot()
         for child in root:
             self.xml_dicc[str(child.tag)] = child.attrib
         return (self.xml_dicc)
+
+    def registerlog(self, acction='', message=''):
+        date = time.strftime("%Y%m%d%H%M%S")
+        dicc = self.xml_dicc['log']
+        pathlog = dicc['path'] + "\log.txt"
+
+        if path.exists(pathlog):
+            with open(pathlog, "a") as log:
+                log.write(date + acction + message + '\r\n')
+        else:
+            log = open(pathlog, 'w')
+            log.write(date + " Starting..." + '\r\n')
+            log.write(date + acction + message + '\r\n')
 
     def handle(self):
         # Escribe dirección y puerto del cliente (de tupla client_address)
@@ -30,30 +43,38 @@ class EchoHandler(socketserver.DatagramRequestHandler):
                 continue
             else:
                 print(line.decode('utf-8'))
+                message = line.decode('utf-8')[:line.decode('utf-8').rfind('\r')]
+                self.registerlog(' Received from ', message)
+
                 messagelist = (line.decode('utf-8').split())
                 newline = ''
                 if messagelist[0] == 'INVITE':
                     newline = 'SIP/2.0 ' + '100 ' + 'Trying'
                     self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
+                    self.registerlog(' Sent to ', newline)
                     newline = 'SIP/2.0 ' + '180 ' + 'Ringing'
                     self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
+                    self.registerlog(' Sent to ', newline)
                     newline = 'SIP/2.0 ' + '200 ' + 'OK'
                 elif messagelist[0] == 'BYE':
                     newline = 'SIP/2.0 ' + '200 ' + 'OK'
                 elif messagelist[0] == 'ACK':
                     rtp = 'mp32rtp -i 127.0.0.1 -p 23032 < ' + sys.argv[3]
                     os.system(rtp)
-                elif messagelist[0] != ('INVITE' and 'BYE'):
-                    newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
+                    self.registerlog(' Sent to ', 'rtp')
+                #elif messagelist[0] != ('INVITE' and 'BYE'):
+                #    newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
                 elif messagelist[2] != 'SIP/2.0':
                     newline = 'SIP/2.0 ' + '400 ' + ' Bad Request'
 
                 self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
+                self.registerlog(' Sent to ', newline)
 
 
 if __name__ == "__main__":
 
     serv = socketserver.UDPServer(('', int(sys.argv[2])), EchoHandler)
+
     # Errores: Entrada de linea de comandos.
     try:
         if path.exists(sys.argv[3]) and len(sys.argv) == 4:
