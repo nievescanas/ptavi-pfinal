@@ -11,11 +11,6 @@ import xml.etree.ElementTree as ET
 
 class Uaclient():
     xml_dicc = {}
-    try:
-        path.exists(sys.argv[1])
-    except IndexError:
-        print("Usage: python3 uaclient.py config method option")
-
     def confxml(self):
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
@@ -39,11 +34,13 @@ class Uaclient():
     def message_sip(self):
         self.confxml()
         uaserver = self.xml_dicc['uaserver']
-        server_ip = uaserver['ip']
         account = self.xml_dicc['account']
         username = account['username']
         rtp_audio = self.xml_dicc['rtpaudio']
         puerto_rtp = rtp_audio['puerto']
+        regproxy = self.xml_dicc['regproxy']
+        reg_ip = regproxy['ip']
+        reg_puerto = regproxy['puerto']
 
         if sys.argv[2] == 'INVITE':
             newline = sys.argv[2] + ' sip:' + sys.argv[3] + ' SIP/2.0\r\n'
@@ -61,19 +58,28 @@ class Uaclient():
         return(newline)
 
 if __name__ == "__main__":
-# Creamos el socket, lo configuramos, lo atamos a un servidor/puerto
 
     client = Uaclient()
+    method = {'REGISTER', 'INVITE', 'BYE'}
+    if int(len(sys.argv)) == 4:
+        if not (path.exists(sys.argv[1]) and sys.argv[2] in method):
+            sys.exit("Usage: python uaclient.py config method option")
+    else:
+        sys.exit("Usage: python uaclient.py config method option")
+
+# Creamos el socket, lo configuramos, lo atamos a un servidor/puerto
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         my_socket.connect(('192.168.56.1', 5555))
-
         message = client.message_sip()
-        date = time.strftime("%Y%m%d%H%M%S")
-        my_socket.send(bytes(message, 'utf-8'))
 
+        my_socket.send(bytes(message, 'utf-8'))
+        date = time.strftime("%Y%m%d%H%M%S")
         # Conecta el socket en el puerto cuando el servidor esté escuchando
-        data = my_socket.recv(1024)
+        try:
+            data = my_socket.recv(1024)
+        except(ConnectionResetError):
+            sys.exit(date + ' Error: No server listening at ')
 
         # Condicionamos los mensajes ACK.
         if data.decode('utf-8') != '':
