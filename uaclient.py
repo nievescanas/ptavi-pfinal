@@ -33,14 +33,11 @@ class Uaclient():
 
     def message_sip(self):
         self.confxml()
-        uaserver = self.xml_dicc['uaserver']
-        account = self.xml_dicc['account']
-        username = account['username']
-        rtp_audio = self.xml_dicc['rtpaudio']
-        puerto_rtp = rtp_audio['puerto']
-        regproxy = self.xml_dicc['regproxy']
-        reg_ip = regproxy['ip']
-        reg_puerto = regproxy['puerto']
+        ip_server = self.xml_dicc['uaserver']['ip']
+        username = self.xml_dicc['account']['username']
+        puerto_rtp = self.xml_dicc['rtpaudio']['puerto']
+        reg_ip = self.xml_dicc['regproxy']['ip']
+        reg_puerto = self.xml_dicc['regproxy']['puerto']
 
         if sys.argv[2] == 'INVITE':
             newline = sys.argv[2] + ' sip:' + sys.argv[3] + ' SIP/2.0\r\n'
@@ -48,18 +45,23 @@ class Uaclient():
             newline += 'v=0\r\n'
             newline += 'o=' + username + ' ' + '192.168.56.1' + '\r\n'
             newline += 't=0\r\n'
-            newline += 'm=audio ' + puerto_rtp + ' RTP\r\n\r\n'
+            newline += 'm=audio ' + puerto_rtp + ' RTP\r\n'
         elif sys.argv[2] == 'REGISTER':
-            newline = sys.argv[2] + ' sip:' + username + ':5555' + 'SIP/2.0\r\n'
-            newline += 'Expires: ' + sys.argv[3] + '\r\n\r\n'
+            newline = sys.argv[2] + ' sip:' + username + ip_server + 'SIP/2.0\r\n'
+            newline += 'Expires: ' + sys.argv[3] + '\r\n'
         elif sys.argv[2] == 'BYE':
-            newline = sys.argv[2] + ' sip:' + sys.argv[3] + 'SIP/2.0\r\n\r\n'
+            newline = sys.argv[2] + ' sip:' + sys.argv[3] + 'SIP/2.0\r\n'
 
         return(newline)
 
 if __name__ == "__main__":
 
     client = Uaclient()
+    xml = client.confxml()
+    ip_proxy = str(xml['regproxy']['ip'])
+    puerto_proxy = int(xml['regproxy']['puerto'])
+
+#Condicionamos la entrada de parámetros
     method = {'REGISTER', 'INVITE', 'BYE'}
     if int(len(sys.argv)) == 4:
         if not (path.exists(sys.argv[1]) and sys.argv[2] in method):
@@ -70,25 +72,29 @@ if __name__ == "__main__":
 # Creamos el socket, lo configuramos, lo atamos a un servidor/puerto
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        my_socket.connect(('192.168.56.1', 5555))
-        message = client.message_sip()
+        # Conecta el socket en el puerto del servidor que esté escuchando
+        my_socket.connect((ip_proxy, puerto_proxy))
 
-        my_socket.send(bytes(message, 'utf-8'))
+        message = client.message_sip()
+        my_socket.send(bytes(message, 'utf-8') + b'\r\n')
         date = time.strftime("%Y%m%d%H%M%S")
-        # Conecta el socket en el puerto cuando el servidor esté escuchando
+
+        #La cantidad máxima de datos que se recibirán a la vez: 1024 bytes
         try:
             data = my_socket.recv(1024)
         except(ConnectionResetError):
-            sys.exit(date + ' Error: No server listening at ')
+            sys.exit(date + ' Error: No server listening at ' + ip_proxy + ' port ' + str(puerto_proxy))
 
         # Condicionamos los mensajes ACK.
         if data.decode('utf-8') != '':
             message_serv = (data.decode('utf-8').split())
-            if 'Trying'in message_serv:
-                if 'Ringing'in message_serv:
-                    if 'OK' in message_serv:
-                        line = 'ACK' + ' sip:'
-                        line += sys.argv[2]
-                        line += ' SIP/2.0\r\n'
+            if 'Trying'in message_serv and 'Ringing'in message_serv:
+                if 'OK' in message_serv:
+                    line = 'ACK' + ' sip:' + sys.argv[2]
+                    line += ' SIP/2.0\r\n'
+                my_socket.send(bytes(line, 'utf-8') + b'\r\n')
+            elif '401' in message_serv:
+                line = message
+                line += 'Authorization: Digest response="154933336112"\r\n'
                 my_socket.send(bytes(line, 'utf-8') + b'\r\n')
         print(data.decode('utf-8'))
