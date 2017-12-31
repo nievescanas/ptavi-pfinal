@@ -16,6 +16,8 @@ import xml.etree.ElementTree as ET
 class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     c_dicc = {}
     xml_dicc = {}
+    usuario = ''
+    passwd = ''
 
     def confxml(self):
         tree = ET.parse(sys.argv[1])
@@ -67,6 +69,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             del self.c_dicc[usuario]
 
     def connection_serv(self, correo='', message=''):
+        print('reenviando')
         ip_server = self.c_dicc[correo][0]
         port_server = self.c_dicc[correo][1]
         my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -80,6 +83,8 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         if 'Trying' in message_serv and 'Ringing' in message_serv:
             if 'OK' in message_serv:
                 new_message = data.decode('utf-8')
+        elif 'OK' in message_serv:
+            new_message = data.decode('utf-8')
         return(new_message)
 
     def handle(self):
@@ -88,53 +93,54 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         (all requests will be handled by this method)
         """
         newline = ''
+        message = ''
         if not self.c_dicc:
             self.json2registered()
         for line in self.rfile:
             if not line or line.decode('utf-8') == "\r\n":
                 continue
             else:
-                metodo = (line.decode('utf-8').split())
-                message = str(line.decode('utf-8'))
-                print(message)
-                ip_client = self.client_address[0]
-                self.caducidad()
+                message += line.decode('utf-8')
 
-                if metodo[0] == 'REGISTER':
-                    correo = metodo[1][metodo[1].find(':')+1:metodo[1].rfind(':')]
-                    puerto_client = metodo[1][metodo[1].rfind(':') + 1:]
-                    newline = 'SIP/2.0 401 Unauthorizad\r\n'
-                    newline += 'WWW Authenticate: Digest nonce="56321684"\r\n'
+        metodo = message.split()
+        print(metodo)
+        message = str(message)
+        metodos = ['INVITE', 'ACK', 'BYE']
+        puerto_client = ''
+        ip_client = self.client_address[0]
+        self.caducidad()
 
-                elif metodo[0] == 'Expires:':
-                    if metodo[1] > '0':
-                        caducidad = time.ctime(time.time() + int(metodo[1]))
-                        info = [ip_client, puerto_client, caducidad]
-                        self.c_dicc[correo] = info
-                    elif metodo[1] == '0':
-                        if correo in self.c_dicc:
-                            del self.c_dicc[correo]
+        if metodo[0] == 'REGISTER' and not 'Authorization:' in metodo:
+            newline = 'SIP/2.0 401 Unauthorizad\r\n'
+            newline += 'WWW Authenticate: Digest nonce="56321684"\r\n'
+            self.passwd = 'falta'
 
-                elif 'Authorization' in metodo:
-                    newline = 'SIP/2.0 200 OK\r\n'
+        elif metodo[0] == 'REGISTER' and 'Authorization:' in metodo:
+            self.usuario = metodo[1][metodo[1].find(':')+1:metodo[1].rfind(':')]
+            puerto_client = metodo[1][metodo[1].rfind(':') + 1:]
+            newline = 'SIP/2.0 200 OK\r\n'
+            self.passwd = metodo[7][metodo[7].find('"')+1:metodo[7].rfind(':')]
 
-                elif metodo[0] == 'INVITE':
-                    correo_serv = metodo[1][metodo[1].rfind(':')+1:]
-                    if correo_serv in self.c_dicc:
-                        newline = self.connection_serv(correo_serv, message)
-                    else:
-                        newline = 'SIP/2.0 404 User Not Found\r\n'
-                elif metodo[0] == 'ACK':
-                    correo_serv = metodo[1][metodo[1].rfind(':')+1:]
-                    if correo_serv in self.c_dicc:
-                        newline = self.connection_serv(correo_serv, message)
-                    else:
-                        newline = 'SIP/2.0 404 User Not Found\r\n'
+            self.passwd = 'correcta'
 
+        elif metodo[0] in metodos:
+            correo_serv = metodo[1][metodo[1].rfind(':')+1:]
+            if correo_serv in self.c_dicc:
+                newline = self.connection_serv(correo_serv, message)
+            else:
+                newline = 'SIP/2.0 404 User Not Found\r\n'
 
+        if 'Expires:' in metodo and self.passwd == 'correcta':
+            if metodo[4] > '0':
+                caducidad = time.ctime(time.time() + int(metodo[4]))
+                info = [ip_client, puerto_client, caducidad]
+                self.c_dicc[self.usuario] = info
+            elif metodo[4] == '0':
+                if self.usuario in self.c_dicc:
+                    del self.c_dicc[self.usuario]
 
-                self.register2json()
-                #self.registerlog(' Received from ', str(ip_client), str(puerto_client), line.decode('utf-8'))
+        self.register2json()
+        #self.registerlog(' Received from ', str(ip_client), str(puerto_client), line.decode('utf-8'))
         self.wfile.write(bytes(str(newline), ' utf-8 ') + b'\r\n')
         #self.registerlog(' Sent to ', str(ip_client), str(puerto_client), str(newline))
 
