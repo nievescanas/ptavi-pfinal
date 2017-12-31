@@ -61,7 +61,7 @@ if __name__ == "__main__":
     xml = client.confxml()
     ip_proxy = str(xml['regproxy']['ip'])
     puerto_proxy = int(xml['regproxy']['puerto'])
-
+    passwd = xml['account']['passwd']
 # Condicionamos la entrada de parámetros
     method = {'REGISTER', 'INVITE', 'BYE'}
     if int(len(sys.argv)) == 4:
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         # Conecta el socket en el puerto del servidor que esté escuchando
         my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        my_socket.connect((ip_proxy, 3636))
+        my_socket.connect((ip_proxy, puerto_proxy))
 
         date = time.strftime("%Y%m%d%H%M%S")
         message = client.message_sip()
@@ -94,13 +94,13 @@ if __name__ == "__main__":
             message_serv = (data.decode('utf-8').split())
             if 'Trying'in message_serv and 'Ringing'in message_serv:
                 if 'OK' in message_serv:
-                    line = 'ACK' + ' sip:' + sys.argv[2]
+                    line = 'ACK' + ' sip:' + sys.argv[3]
                     line += ' SIP/2.0\r\n'
                 client.registerlog(' Sent to ', ip_proxy, str(puerto_proxy), line)
                 my_socket.send(bytes(line, 'utf-8') + b'\r\n')
             elif '401' in message_serv:
                 line = message
-                line += 'Authorization: Digest response="154933336112"\r\n'
+                line += 'Authorization: Digest response=' + passwd + '\r\n'
                 client.registerlog(' Sent to ', ip_proxy, str(puerto_proxy), line)
                 my_socket.send(bytes(line, 'utf-8') + b'\r\n')
         print(data.decode('utf-8'))
