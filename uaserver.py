@@ -25,12 +25,13 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         reg_puerto = xml['regproxy']['puerto']
         reg_ip = xml['regproxy']['ip']
         message = ''
+        ip_server = ''
+        puerto_rtp = ''
         for line in self.rfile:
             if not line or line.decode('utf-8') == "\r\n":
                 continue
             else:
                 message += line.decode('utf-8')
-
         print(message)
         message_log = message[message.rfind('\r')]
         self.registerlog(' Received from ', client_ip, client_puerto, message_log)
@@ -38,18 +39,26 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         messagelist = (message.split())
         newline = ''
         if messagelist[0] == 'INVITE':
+            ip_server = messagelist[7]
+            puerto_rtp = messagelist[11]
             newline = 'SIP/2.0 ' + '100 ' + 'Trying'
             self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
             self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
             newline = 'SIP/2.0 ' + '180 ' + 'Ringing'
             self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
             self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
-            newline = 'SIP/2.0 ' + '200 ' + 'OK'
+            newline = 'SIP/2.0 ' + '200 ' + 'OK' + '\r\n'
+            newline += 'Content-Type: application/sdp\r\n\r\n'
+            newline += 'v=0\r\n'
+            newline += 'o=' + xml['account']['username'] + ' ' + '192.168.56.1' + '\r\n'
+            newline += 't=0\r\n'
+            newline += 'm=audio ' + xml['rtpaudio']['puerto'] + ' RTP'
         elif messagelist[0] == 'BYE':
             newline = 'SIP/2.0 ' + '200 ' + 'OK'
         elif messagelist[0] == 'ACK':
-            rtp = 'mp32rtp -i 127.0.0.1 -p 23032 < '
-            os.system(rtp)
+            audio_path = str(xml['audio']['path'])
+            aEjecutar = 'mp32rtp -i' + ip_server + ' -p' + puerto_rtp + ' <' + audio_path
+            os.system(aEjecutar)
             self.registerlog(' Sent to ', 'rtp')
         elif messagelist[0] != ('INVITE' and 'BYE'):
             newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
@@ -64,7 +73,6 @@ if __name__ == "__main__":
 
     server = Uaserver()
     xml = server.confxml()
-    puerto_server = int(xml['uaserver']['puerto'])
 
     if int(len(sys.argv)) == 2 and path.exists(sys.argv[1]):
             print('Listening...')
@@ -72,6 +80,7 @@ if __name__ == "__main__":
     else:
         sys.exit('Usage: python uaserver.py config')
 
+    puerto_server = int(xml['uaserver']['puerto'])
     # Creamos servidor de eco y escuchamos
     serv = socketserver.UDPServer(('', puerto_server), EchoHandler)
 
