@@ -9,10 +9,12 @@ import sys
 import os.path as path
 from uaclient import Uaclient
 
+
 class Uaserver(Uaclient):
     # Iniciamos, leemos y guardamos la informacion del xml
     def data_server(self):
         self.confxml()
+
 
 class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
     info_client = {}
@@ -26,18 +28,16 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         reg_ip = xml['regproxy']['ip']
         message = ''
 
-        # Leyendo línea a línea lo que nos envía el cliente
+        # Read line by line message
         for line in self.rfile:
             if not line or line.decode('utf-8') == "\r\n":
                 continue
             else:
                 message += line.decode('utf-8')
+        # Registry log.txt
+        self.registerlog(' Received from ', client_ip, client_puerto, message)
 
-        print('Received: ', message)
-        message_log = message[message.rfind('\r')]
-        self.registerlog(' Received from ', client_ip, client_puerto, message_log)
-
-        # Guarda el mensaje entero en un lista
+        # Build the answer
         messagelist = (message.split())
         newline = ''
         if messagelist[0] == 'INVITE':
@@ -60,31 +60,33 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
             name_fich = str(xml['audio']['path'][:xml['audio']['path'].rfind('/')])
             port_rtp = self.info_client[self.client_address[0]]
             self.rtp_shipment(self.client_address[0], port_rtp)
-            self.registerlog(' Sent to ', 'rtp')
+            self.registerlog(' Sent to ', self.client_address[0], port_rtp, 'RTP')
         elif messagelist[0] != ('INVITE' and 'BYE'):
             newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
         elif messagelist[2] != 'SIP/2.0':
             newline = 'SIP/2.0 ' + '400 ' + ' Bad Request'
 
-        self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
-        self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
+        # Send answer and Registry log.txt
+        if newline != '':
+            self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
+            self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
+
 
 if __name__ == "__main__":
-
     server = Uaserver()
     xml = server.confxml()
-
+    # Verificamos datos de entrada
     if int(len(sys.argv)) == 2 and path.exists(sys.argv[1]):
             print('Listening...')
             server.registerlog(' Starting...')
     else:
         sys.exit('Usage: python uaserver.py config')
-
     puerto_server = int(xml['uaserver']['puerto'])
+
     # Creamos servidor de eco y escuchamos
     serv = socketserver.UDPServer(('', puerto_server), EchoHandler)
-
     try:
         serv.serve_forever()
     except KeyboardInterrupt:
+        server.registerlog(' Finishing. ')
         print("Finalizado servidor")
