@@ -3,44 +3,45 @@
 """
 Clase (y programa principal) para un servidor de eco en UDP simple
 """
-import os
+
 import socketserver
 import sys
 import os.path as path
 from uaclient import Uaclient
 
 class Uaserver(Uaclient):
-    def datos(self):
+    # Iniciamos, leemos y guardamos la informacion del xml
+    def data_server(self):
         self.confxml()
 
 class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
+    info_client = {}
 
     def handle(self):
-        # Escribe dirección y puerto del cliente (de tupla client_address)
-            # Leyendo línea a línea lo que nos envía el cliente
-
+        # Guarda los datos de interes en variables
         xml = self.confxml()
         client_ip = str(self.client_address[0])
         client_puerto = str(self.client_address[1])
         reg_puerto = xml['regproxy']['puerto']
         reg_ip = xml['regproxy']['ip']
         message = ''
-        ip_server = ''
-        puerto_rtp = ''
+
+        # Leyendo línea a línea lo que nos envía el cliente
         for line in self.rfile:
             if not line or line.decode('utf-8') == "\r\n":
                 continue
             else:
                 message += line.decode('utf-8')
-        print(message)
+
+        print('Received: ', message)
         message_log = message[message.rfind('\r')]
         self.registerlog(' Received from ', client_ip, client_puerto, message_log)
 
+        # Guarda el mensaje entero en un lista
         messagelist = (message.split())
         newline = ''
         if messagelist[0] == 'INVITE':
-            ip_server = messagelist[7]
-            puerto_rtp = messagelist[11]
+            self.info_client[messagelist[7]] = messagelist[10]
             newline = 'SIP/2.0 ' + '100 ' + 'Trying'
             self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
             self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
@@ -56,9 +57,9 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         elif messagelist[0] == 'BYE':
             newline = 'SIP/2.0 ' + '200 ' + 'OK'
         elif messagelist[0] == 'ACK':
-            audio_path = str(xml['audio']['path'])
-            aEjecutar = 'mp32rtp -i' + ip_server + ' -p' + puerto_rtp + ' <' + audio_path
-            os.system(aEjecutar)
+            name_fich = str(xml['audio']['path'][:xml['audio']['path'].rfind('/')])
+            port_rtp = self.info_client[self.client_address[0]]
+            self.rtp_shipment(self.client_address[0], port_rtp)
             self.registerlog(' Sent to ', 'rtp')
         elif messagelist[0] != ('INVITE' and 'BYE'):
             newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
@@ -67,7 +68,6 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
 
         self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
         self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
-
 
 if __name__ == "__main__":
 
