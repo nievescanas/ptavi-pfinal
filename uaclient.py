@@ -14,6 +14,12 @@ import xml.etree.ElementTree as ET
 class Uaclient:
     xml_dicc = {}
 
+    def rtp_shipment(self, ip='', port='', name=''):
+        aEjecutar = './mp32rtp -i ' + ip + ' -p ' + port
+        aEjecutar += ' < ' + 'cancion.mp3'
+        print(aEjecutar)
+        os.system(aEjecutar)
+
     def confxml(self):
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
@@ -99,10 +105,9 @@ if __name__ == "__main__":
                     my_socket.send(bytes(line, 'utf-8') + b'\r\n')
                     # Envio rtp
                     ip_server = message_serv[13]
-                    puerto_rtp = message_serv[17]
+                    port_rtp = message_serv[16]
                     audio_path = str(xml['audio']['path'])
-                    aEjecutar = 'mp32rtp -i' + ip_server + ' -p' + puerto_rtp + ' <' + audio_path
-                    os.system(aEjecutar)
+                    client.rtp_shipment(ip_server, port_rtp)
                 elif '401' in message_serv:
                     line = message
                     line += 'Authorization: Digest response=' + passwd + '\r\n'
