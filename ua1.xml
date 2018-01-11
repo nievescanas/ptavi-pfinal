@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<config>
+	<account username = "leonard@bigbang.org" passwd = "Copo" />
+	<uaserver ip = "192.168.56.1" puerto = "3636" />
+	<rtpaudio puerto = "1234" />
+	<regproxy ip = "192.168.56.1" puerto = "5555" />
+	<log path = "C:\Users\Nieves\Documents\Python\ptavi-pfinal" />
+	<audio path = "C:\Users\Nieves\Documents\Python\ptavi-pfinal" />
+</config>
