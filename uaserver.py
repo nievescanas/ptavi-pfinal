@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 """
-Clase (y programa principal) para un servidor de eco en UDP simple
+Clases (y programa principal) para un servidor de eco en UDP simple
 """
 
 import socketserver
@@ -28,7 +28,7 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         reg_ip = xml['regproxy']['ip']
         message = ''
 
-        # Read line by line message
+        # Lee linea a linea el mensaje
         for line in self.rfile:
             if not line or line.decode('utf-8') == "\r\n":
                 continue
@@ -37,7 +37,7 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         # Registry log.txt
         self.registerlog(' Received from ', client_ip, client_puerto, message)
 
-        # Build the answer
+        # Construye , envia y registra la respuesta
         messagelist = (message.split())
         newline = ''
         if messagelist[0] == 'INVITE':
@@ -66,7 +66,7 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
         elif messagelist[2] != 'SIP/2.0':
             newline = 'SIP/2.0 ' + '400 ' + ' Bad Request'
 
-        # Send answer and Registry log.txt
+        # Envia y registra la respuesta
         if newline != '':
             self.wfile.write(bytes(newline, 'utf-8') + b'\r\n\r\n')
             self.registerlog(' Sent to ', reg_ip, reg_puerto, newline)
