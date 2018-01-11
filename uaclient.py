@@ -13,28 +13,37 @@ import xml.etree.ElementTree as ET
 
 class Uaclient:
     xml_dicc = {}
-    # Envio de rtp
+    """
+    Envia rtp
+    """
     def rtp_shipment(self, ip='', port='', name=''):
         aEjecutar = './mp32rtp -i ' + ip + ' -p ' + port
         aEjecutar += ' < ' + 'cancion.mp3'
         os.system(aEjecutar)
-    # Lee fichero xml y guarda la informacion en un diccionario
+
+    """
+    Lee ficheros xml y guarda la informacion en un diccionario
+    """
     def confxml(self):
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
         for child in root:
             self.xml_dicc[str(child.tag)] = child.attrib
         return self.xml_dicc
-    # Registra lo que sucede en log.txt
+
+    """
+    Registra lo que sucede en log.txt
+    """
     def registerlog(self, acction='', ip='', puerto='', message=''):
         date = time.strftime("%Y%m%d%H%M%S")
         dicc = self.xml_dicc['log']
         pathlog = dicc['path'] + "\log.txt"
-        message = message.split('\r\n')[0]
+        message = message.split('\r\n')
+        message = ' '.join(message)
         if path.exists(pathlog):
             with open(pathlog, "a") as log:
                 if acction != ' Sent to ' and acction != ' Received from ':
-                    log.write(date + acction + message + '\r\n')
+                    log.write(date + ' ' + acction + message + '\r\n')
                 else:
                     log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
         else:
@@ -43,6 +52,7 @@ class Uaclient:
                 log.write(date + acction + '\r\n')
             else:
                 log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
+
     # Contruye mensaje sip
     def message_sip(self):
         newline = ''
@@ -67,9 +77,8 @@ class Uaclient:
         return newline
 
 
-
 if __name__ == "__main__":
-    # Condicionamos la entrada de parámetros
+    # Condiciona la entrada de parámetros
     method = {'REGISTER', 'INVITE', 'BYE'}
     if int(len(sys.argv)) == 4:
         if not (path.exists(sys.argv[1]) and sys.argv[2] in method):
@@ -83,7 +92,7 @@ if __name__ == "__main__":
     puerto_proxy = int(xml['regproxy']['puerto'])
     passwd = xml['account']['passwd']
 
-    # Creamos el socket, lo configuramos, lo atamos a un servidor/puerto
+    # Creamos el socket, lo configuramos y lo atamos a un servidor/puerto
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as my_socket:
         # Conecta el socket en el puerto del servidor que esté escuchando
         my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -121,6 +130,6 @@ if __name__ == "__main__":
             print(data.decode('utf-8'))
         except ConnectionResetError:
             date = time.strftime("%Y%m%d%H%M%S")
-            line = ' Error: No server listening at ' + ip_proxy + ' port ' + str(puerto_proxy)
+            line = 'Error: No server listening at ' + ip_proxy + ' port ' + str(puerto_proxy)
             client.registerlog(line)
             sys.exit(line)
