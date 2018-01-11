@@ -19,6 +19,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     passwd = ''
     puerto_client = ''
 
+    """
+    Lee y guarda en un diccionario el fichero indicado por parámetro
+    """
     def confxml(self):
         tree = ET.parse(sys.argv[1])
         root = tree.getroot()
@@ -26,6 +29,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             self.xml_dicc[str(child.tag)] = child.attrib
         return self.xml_dicc
 
+    """
+    Registra en un fichero txt la entrada y salida de mensajes
+    """
     def registerlog(self, acction='', ip='', puerto='', message=''):
         self.confxml()
         date = time.strftime("%Y%m%d%H%M%S")
@@ -44,7 +50,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             else:
                 log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
 
-
+    """
+    Lee y comprueba las contraseñas
+    """
     def register_passwd(self, passwd=''):
         path_passwd = self.xml_dicc['database']['passwdpath']
         if path.exists(path_passwd):
@@ -66,18 +74,18 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             with open(path_register) as d_file:
                 data = json.load(d_file)
                 self.c_dicc = data
+
     """
     Crea y escribe un fichero json
     """
-
     def register2json(self, name='\client_registrar.json'):
         path_register = self.xml_dicc['database']['path'] + name
         with open(path_register, 'w') as outfile:
             json.dump(self.c_dicc, outfile, separators=(',', ':'), indent="")
+
     """
     Comprueba y borra los usuarios caducados
     """
-
     def caducidad(self):
         tmp_list = []
         for usuario in self.c_dicc:
@@ -88,16 +96,20 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         for usuario in tmp_list:
             del self.c_dicc[usuario]
 
+    """
+    Creamos el socket, lo configuramos y lo atamos a un servidor/puerto
+    """
     def connection_serv(self, correo='', message=''):
         date = time.strftime("%Y%m%d%H%M%S")
         ip_server = self.c_dicc[correo][0]
         port_server = self.c_dicc[correo][1]
         my_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR,1)
+        my_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         my_socket.connect((ip_server, int(port_server)))
         my_socket.send(bytes(message, 'utf-8') + b'')
         self.registerlog(' Sent to ', str(ip_server), port_server, message)
 
+        # Escucha y devuelve el mensaje
         try:
             data = my_socket.recv(1024)
             if data.decode('utf-8') != '':
@@ -109,9 +121,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
                     new_message = data.decode('utf-8')
             elif 'OK' in message_serv:
                 new_message = data.decode('utf-8')
-            return(new_message)
+            return new_message
         except ConnectionResetError:
-            return(date + ' Error: No server listening at ' + ip_server + ' port ' + str(port_server))
+            return date + ' Error: No server listening at ' + ip_server + ' port ' + str(port_server)
 
     def handle(self):
         """
