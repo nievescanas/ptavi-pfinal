@@ -15,7 +15,7 @@ import xml.etree.ElementTree as ET
 class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     c_dicc = {}
     xml_dicc = {}
-    usuario = ''
+    user = ''
     passwd = ''
     puerto_client = ''
 
@@ -35,20 +35,25 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     def registerlog(self, acction='', ip='', puerto='', message=''):
         self.confxml()
         date = time.strftime("%Y%m%d%H%M%S")
-        pathlog = self.xml_dicc['log']['path'] + "\log_registrar.txt"
-        message = message.split('\r\n')[0]
+        pathlog = self.xml_dicc['log']['path'] + "/log_registrar.txt"
+        message = message.split('\r\n')
+        message = ' '.join(message)
         if path.exists(pathlog):
             with open(pathlog, "a") as log:
                 if acction != ' Sent to ' and acction != ' Received from ':
                     log.write(date + acction + message + '\r\n')
                 else:
-                    log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
+                    line = date + acction + ip + ':'
+                    line += puerto + ': ' + message + '\r\n'
+                    log.write(str(line))
         else:
             log = open(pathlog, 'w')
             if acction == ' Starting...':
                 log.write(date + acction + '\r\n')
             else:
-                log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
+                line = date + acction + ip + ':'
+                line += puerto + ': ' + message + '\r\n'
+                log.write(str(line))
 
     """
     Lee y comprueba las contraseñas
@@ -59,7 +64,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             with open(path_passwd) as d_file:
                 data = json.load(d_file)
                 self.passwd_dicc = data
-        if passwd in self.passwd_dicc[self.usuario]:
+        if passwd in self.passwd_dicc[self.user]:
             passwd = 'correcta'
         else:
             passwd = 'falsa'
@@ -69,7 +74,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     Comprueba si existe el fichero y lo utiliza como diccionario
     """
     def json2registered(self):
-        path_register = self.xml_dicc['database']['path'] + "\client_registrar.json"
+        path_register = self.xml_dicc['database']['path'] + "/proxy.json"
         if path.exists(path_register):
             with open(path_register) as d_file:
                 data = json.load(d_file)
@@ -78,7 +83,7 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
     """
     Crea y escribe un fichero json
     """
-    def register2json(self, name='\client_registrar.json'):
+    def register2json(self, name='/proxy.json'):
         path_register = self.xml_dicc['database']['path'] + name
         with open(path_register, 'w') as outfile:
             json.dump(self.c_dicc, outfile, separators=(',', ':'), indent="")
@@ -112,8 +117,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         # Escucha y devuelve el mensaje
         try:
             data = my_socket.recv(1024)
+            m = data.decode('utf-8')
             if data.decode('utf-8') != '':
-                self.registerlog(' Received from ', ip_server, port_server, data.decode('utf-8'))
+                self.registerlog(' Received from ', ip_server, port_server, m)
             new_message = ''
             message_serv = (data.decode('utf-8').split())
             if 'Trying' in message_serv and 'Ringing' in message_serv:
@@ -122,8 +128,9 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
             elif 'OK' in message_serv:
                 new_message = data.decode('utf-8')
             return new_message
-        except ConnectionResetError:
-            return date + ' Error: No server listening at ' + ip_server + ' port ' + str(port_server)
+        except ConnectionRefusedError:
+            error = ' Error: No server listening at '
+            return date + error + ip_server + ' port ' + str(port_server)
 
     def handle(self):
         """
@@ -146,45 +153,51 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
 
         metodo = message.split()
         ip_client = self.client_address[0]
+        ip = str(ip_client)
         self.caducidad()
 
         if metodo[0] == 'REGISTER' and 'Authorization:' in metodo:
-            self.usuario = metodo[1][metodo[1].find(':')+1:metodo[1].rfind(':')]
+            self.user = metodo[1][metodo[1].find(':')+1:metodo[1].rfind(':')]
             self.puerto_client = metodo[1][metodo[1].rfind(':') + 1:]
+            puerto = self.puerto_client
             passwd = metodo[7][metodo[7].find('=')+1:]
             self.passwd = self.register_passwd(passwd)
             newline = 'SIP/2.0 200 OK\r\n'
-            self.registerlog(' Received from ', str(ip_client), self.puerto_client, message)
-            self.registerlog(' Sent to ', str(ip_client), self.puerto_client, str(newline))
+            self.registerlog(' Received from ', ip, puerto, message)
+            self.registerlog(' Sent to ', ip, self.puerto_client, str(newline))
 
         elif not('Authorization:' in metodo) and metodo[0] == 'REGISTER':
             self.puerto_client = metodo[1][metodo[1].rfind(':') + 1:]
+            puerto = self.puerto_client
             newline = 'SIP/2.0 401 Unauthorized\r\n'
             newline += 'WWW Authenticate: Digest nonce="56321684"\r\n'
             self.passwd = 'falta'
-            self.registerlog(' Received from ', str(ip_client), self.puerto_client, message)
-            self.registerlog(' Sent to ', str(ip_client), self.puerto_client, str(newline))
+            self.registerlog(' Received from ', ip, puerto, message)
+            self.registerlog(' Sent to ', ip, puerto, str(newline))
 
         if metodo[0] in metodos:
             correo_serv = metodo[1][metodo[1].rfind(':')+1:]
-            self.registerlog(' Received from ', str(ip_client), str(self.client_address[1]), message)
+            puerto = str(self.client_address[1])
+            self.registerlog(' Received from ', ip, puerto, message)
             if correo_serv in self.c_dicc:
                 newline = self.connection_serv(correo_serv, mensaje_reenvio)
             else:
                 newline = 'SIP/2.0 404 User Not Found\r\n'
-                self.registerlog(' Sent to ', str(ip_client), str(self.client_address[1]), str(newline))
+                puerto = str(self.client_address[1])
+                self.registerlog(' Sent to ', ip, puerto, str(newline))
 
         if 'Expires:' in metodo and self.passwd == 'correcta':
             if metodo[4] > '0':
                 caducidad = time.ctime(time.time() + int(metodo[4]))
                 info = [ip_client, self.puerto_client, caducidad]
-                self.c_dicc[self.usuario] = info
+                self.c_dicc[self.user] = info
             elif metodo[4] == '0':
-                if self.usuario in self.c_dicc:
-                    del self.c_dicc[self.usuario]
+                if self.user in self.c_dicc:
+                    del self.c_dicc[self.user]
         self.register2json()
         if newline != '':
-            self.registerlog(' Sent to ', str(ip_client), str(self.client_address[1]), newline)
+            puerto = str(self.client_address[1])
+            self.registerlog(' Sent to ', ip, puerto, newline)
             self.wfile.write(bytes(str(newline), ' utf-8 ') + b'\r\n')
 
 
