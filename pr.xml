@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<config>
+	<server name = "Reg" ip = "192.168.56.1" puerto = "5555" />
+	<database path = "/home/alumnos/nievescm/Descargas/ptavi" passwdpath = "/home/alumnos/nievescm/Descargas/ptavi/passwords.json" />
+	<log path = "/home/alumnos/nievescm/Descargas/ptavi" />
+</config>
