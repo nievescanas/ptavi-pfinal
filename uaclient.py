@@ -18,7 +18,7 @@ class Uaclient:
     """
     def rtp_shipment(self, ip='', port='', name=''):
         aEjecutar = './mp32rtp -i ' + ip + ' -p ' + port
-        aEjecutar += ' < ' + 'cancion.mp3'
+        aEjecutar += ' < ' + name
         os.system(aEjecutar)
 
     """
@@ -37,7 +37,7 @@ class Uaclient:
     def registerlog(self, acction='', ip='', puerto='', message=''):
         date = time.strftime("%Y%m%d%H%M%S")
         dicc = self.xml_dicc['log']
-        pathlog = dicc['path'] + "\log.txt"
+        pathlog = dicc['path'] + "/log.txt"
         message = message.split('\r\n')
         message = ' '.join(message)
         if path.exists(pathlog):
@@ -45,13 +45,17 @@ class Uaclient:
                 if acction != ' Sent to ' and acction != ' Received from ':
                     log.write(date + ' ' + acction + message + '\r\n')
                 else:
-                    log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
+                    line = date + acction + ip + ':' + puerto
+                    line += ': ' + message + '\r\n'
+                    log.write(str(line))
         else:
             log = open(pathlog, 'w')
             if acction == ' Starting...':
                 log.write(date + acction + '\r\n')
             else:
-                log.write(date + acction + ip + ':' + puerto + ': ' + message + '[...]' + '\r\n')
+                line = date + acction + ip + ':' + puerto
+                line += ': ' + message + '\r\n'
+                log.write(str(line))
 
     # Contruye mensaje sip
     def message_sip(self):
@@ -65,15 +69,17 @@ class Uaclient:
             newline = sys.argv[2] + ' sip:' + sys.argv[3] + ' SIP/2.0\r\n'
             newline += 'Content-Type: application/sdp\r\n\r\n'
             newline += 'v=0\r\n'
-            newline += 'o=' + username + ' ' + '192.168.56.1' + '\r\n'
+            newline += 'o=' + username + ' ' + '127.0.0.1' + '\r\n'
             newline += 't=0\r\n'
             newline += 'm=audio ' + puerto_rtp + ' RTP\r\n'
         elif sys.argv[2] == 'REGISTER':
-            newline = sys.argv[2] + ' sip:' + username + ':' + puerto_server + ' SIP/2.0\r\n'
+            newline = sys.argv[2] + ' sip:' + username
+            newline += ':' + puerto_server + ' SIP/2.0\r\n'
             newline += 'Expires: ' + sys.argv[3] + '\r\n'
 
         elif sys.argv[2] == 'BYE':
-            newline = sys.argv[2] + ' sip:' + sys.argv[3] + ' SIP/2.0\r\n'
+            newline = sys.argv[2] + ' sip:'
+            newline += sys.argv[3] + ' SIP/2.0\r\n'
         return newline
 
 
@@ -104,32 +110,35 @@ if __name__ == "__main__":
 
         # Escucha, construye y envia los mensajes
         try:
+            port = str(puerto_proxy)
+            ip = ip_proxy
             data = my_socket.recv(puerto_proxy)
+            mensaje = data.decode('utf-8')
             if data.decode('utf-8') != '':
                 line = ''
                 message_serv = (data.decode('utf-8').split())
-                client.registerlog(' Received from ', ip_proxy, str(puerto_proxy), data.decode('utf-8'))
+                client.registerlog(' Received from ', ip, port, mensaje)
                 if 'Trying'in message_serv and 'Ringing'in message_serv:
                     if 'OK' in message_serv:
                         line = 'ACK' + ' sip:' + sys.argv[3]
                         line += ' SIP/2.0\r\n'
-                    client.registerlog(' Sent to ', ip_proxy, str(puerto_proxy), line)
+                    client.registerlog(' Sent to ', ip, port, line)
                     my_socket.send(bytes(line, 'utf-8') + b'\r\n')
                     # Envio rtp
                     ip_server = message_serv[13]
-                    port_rtp = message_serv[16]
-                    audio_path = str(xml['audio']['path'])
-                    client.rtp_shipment(ip_server, port_rtp)
-                    client.registerlog(' Sent to ', ip_server, str(port_rtp), 'RTP')
+                    port_rtp = str(message_serv[16])
+                    fich = str(xml['audio']['path'][xml['audio']['path'].rfind('/')+1:])
+                    client.rtp_shipment(ip_server, port_rtp, fich)
+                    client.registerlog(' Sent to ', ip_server, port_rtp, 'RTP')
                 elif '401' in message_serv:
                     line = message
                     line += 'Authorization: Digest response=' + passwd + '\r\n'
-                    client.registerlog(' Sent to ', ip_proxy, str(puerto_proxy), line)
+                    client.registerlog(' Sent to ', ip, port, line)
                     my_socket.send(bytes(line, 'utf-8') + b'\r\n')
                     data = my_socket.recv(puerto_proxy)
             print(data.decode('utf-8'))
         except ConnectionResetError:
             date = time.strftime("%Y%m%d%H%M%S")
-            line = 'Error: No server listening at ' + ip_proxy + ' port ' + str(puerto_proxy)
+            line = 'Error: No server listening at ' + ip + ' port ' + port
             client.registerlog(line)
             sys.exit(line)
