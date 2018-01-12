@@ -1,0 +1,1 @@
+- Si el server no esta escuchando , aunque esté registrado, el proxy reenvia el mensaje de error al cliente para que sea consciente de ello. 
