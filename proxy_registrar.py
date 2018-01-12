@@ -10,6 +10,7 @@ import os.path as path
 import time
 import socket
 import xml.etree.ElementTree as ET
+import random
 
 
 class SIPRegisterHandler(socketserver.DatagramRequestHandler):
@@ -169,8 +170,10 @@ class SIPRegisterHandler(socketserver.DatagramRequestHandler):
         elif not('Authorization:' in metodo) and metodo[0] == 'REGISTER':
             self.puerto_client = metodo[1][metodo[1].rfind(':') + 1:]
             puerto = self.puerto_client
+            nonce = random.randint(0,9999999999999999)
             newline = 'SIP/2.0 401 Unauthorized\r\n'
-            newline += 'WWW Authenticate: Digest nonce="56321684"\r\n'
+            newline += 'WWW Authenticate: Digest nonce="'
+            newline += str(nonce) + '"' + '\r\n'
             self.passwd = 'falta'
             self.registerlog(' Received from ', ip, puerto, message)
             self.registerlog(' Sent to ', ip, puerto, str(newline))
