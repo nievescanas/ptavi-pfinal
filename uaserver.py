@@ -51,16 +51,18 @@ class EchoHandler(socketserver.DatagramRequestHandler, Uaserver):
             newline = 'SIP/2.0 ' + '200 ' + 'OK' + '\r\n'
             newline += 'Content-Type: application/sdp\r\n\r\n'
             newline += 'v=0\r\n'
-            newline += 'o=' + xml['account']['username'] + ' ' + '192.168.56.1' + '\r\n'
+            newline += 'o=' + xml['account']['username']
+            newline += ' ' + '127.0.0.1' + '\r\n'
             newline += 't=0\r\n'
             newline += 'm=audio ' + xml['rtpaudio']['puerto'] + ' RTP'
         elif messagelist[0] == 'BYE':
             newline = 'SIP/2.0 ' + '200 ' + 'OK'
         elif messagelist[0] == 'ACK':
-            name_fich = str(xml['audio']['path'][:xml['audio']['path'].rfind('/')])
-            port_rtp = self.info_client[self.client_address[0]]
-            self.rtp_shipment(self.client_address[0], port_rtp)
-            self.registerlog(' Sent to ', self.client_address[0], port_rtp, 'RTP')
+            name_fich = str(xml['audio']['path'][xml['audio']['path'].rfind('/')+1:])
+            ip = self.client_address[0]
+            port_rtp = self.info_client[str(ip)]
+            self.rtp_shipment(ip, port_rtp, name_fich)
+            self.registerlog(' Sent to ', ip, port_rtp, 'RTP')
         elif messagelist[0] != ('INVITE' and 'BYE'):
             newline = 'SIP/2.0 ' + '405 ' + 'Method Not Allowed'
         elif messagelist[2] != 'SIP/2.0':
